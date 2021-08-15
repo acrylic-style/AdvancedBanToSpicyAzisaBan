@@ -150,7 +150,7 @@ object ABToSABApp {
                             .addValue("start", start)
                             .addValue("end", end)
                             .addValue("server", server)
-                            .addValue("extra", "")
+                            .addValue("extra", if (punishmentType == PunishmentType.WARNING) "SEEN" else "")
                             .build()
                     ).complete()
                 }
