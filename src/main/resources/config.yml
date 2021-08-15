@@ -1,3 +1,10 @@
+# Server name to use
+# This can be a group name, or server name
+# All punishments imported from "from" will be registered under that server
+# Punishments associated with server "global" would be applied to an entire network
+# You might want to change this every time you import the punishments to prevent applying punishments to wrong server
+server: global
+
 from:
   # hsql or mysql
   type: hsql
