@@ -1,0 +1,22 @@
+from:
+  # hsql or mysql
+  type: hsql
+
+  # used if type is hsql
+  # path to hsql database file
+  location: database.hsql
+
+  # used if type is mysql
+  host: localhost
+  name: advancedban
+  user: advancedban
+  password: naetao
+
+to:
+  host: localhost
+  name: spicyazisaban
+  user: spicyazisaban
+  password: naetao
+
+# 00000000-0000-0000-0000-000000000000 is an uuid of CONSOLE used internally
+fallbackUUID: 00000000-0000-0000-0000-000000000000
