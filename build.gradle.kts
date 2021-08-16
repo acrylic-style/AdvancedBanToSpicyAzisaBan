@@ -34,13 +34,6 @@ tasks {
     }
 
     shadowJar {
-        relocate("kotlin", "net.azisaba.abToSab.libs.kotlin")
-        relocate("util", "net.azisaba.abToSab.libs.util")
-        relocate("xyz.acrylicstyle.sql", "net.azisaba.abToSab.libs.xyz.acrylicstyle.sql")
-        relocate("net.blueberrymc.native_util", "net.azisaba.abToSab.libs.net.blueberrymc.native_util")
-        relocate("org.mariadb", "net.azisaba.abToSab.libs.org.mariadb")
-
-        minimize()
         archiveFileName.set("AdvancedBanToSpicyAzisaBan-${project.version}.jar")
     }
 }

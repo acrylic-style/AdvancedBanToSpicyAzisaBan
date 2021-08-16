@@ -1,5 +1,6 @@
 package net.azisaba.abToSab
 
+import net.azisaba.abToSab.Util.insert
 import net.azisaba.abToSab.Util.toMojangUniqueId
 import net.azisaba.spicyAzisaBan.punishment.PunishmentType
 import net.azisaba.abToSab.Util.toUUID
@@ -87,10 +88,8 @@ object ABToSABApp {
             TableDefinition.Builder("timestamp", DataType.BIGINT).setAllowNull(false).build(),
             TableDefinition.Builder("operator", DataType.STRING).setAllowNull(false).build(),
         ))
-        println("Copying ${fromCfg.getString("name")}.PunishmentHistory to ${toCfg.getString("name")}.punishmentHistory")
-        copyTable(fPunishmentHistory, tPunishmentHistory, cfg.getString("server"))
-        println("Copying ${fromCfg.getString("name")}.Punishments to ${toCfg.getString("name")}.punishments")
-        copyTable(fPunishments, tPunishments, cfg.getString("server"))
+        println("Copying ${fromCfg.getString("name")}.PunishmentHistory to ${toCfg.getString("name")}.punishmentHistory / ${toCfg.getString("name")}.punishments")
+        copyTable(fPunishments, tPunishments, fPunishmentHistory, tPunishmentHistory, cfg.getString("server"))
         println("Checking for removed punishments")
         tPunishmentHistory.findAll(FindOptions.ALL)
             .thenDo { list ->
@@ -99,15 +98,17 @@ object ABToSABApp {
                     tPunishments.findOne(FindOptions.Builder().addWhere("id", id).build())
                         .thenDo td2@ { td2 ->
                             if (td2 != null) return@td2
-                            println("Adding unpunish record for #$id")
-                            tUnpunish.insert(
-                                InsertOptions.Builder()
-                                    .addValue("punish_id", id)
-                                    .addValue("reason", "Imported from AdvancedBan")
-                                    .addValue("timestamp", System.currentTimeMillis())
-                                    .addValue("operator", UUIDUtil.NIL.toString())
-                                    .build()
-                            ).complete()
+                            if (tUnpunish.findOne(FindOptions.Builder().addWhere("punish_id", id).build()).complete() == null) {
+                                println("Adding unpunish record for #$id")
+                                tUnpunish.insert(
+                                    InsertOptions.Builder()
+                                        .addValue("punish_id", id)
+                                        .addValue("reason", "Imported from AdvancedBan")
+                                        .addValue("timestamp", System.currentTimeMillis())
+                                        .addValue("operator", UUIDUtil.NIL.toString())
+                                        .build()
+                                ).complete()
+                            }
                         }.complete()
                 }
             }.onCatch { it.printStackTrace() }.complete()
@@ -119,7 +120,7 @@ object ABToSABApp {
         exitProcess(0)
     }
 
-    private fun copyTable(from: Table, to: Table, server: String) {
+    private fun copyTable(fPunishments: Table, tPunishments: Table, from: Table, to: Table, server: String) {
         from.findAll(FindOptions.ALL)
             .thenDo { list ->
                 list.forEach { td ->
@@ -139,20 +140,37 @@ object ABToSABApp {
                     }
                     val start = td.getString("start").toLong()
                     val end = if (punishmentType.temp) td.getString("end").toLong() else -1L
-                    to.insert(
-                        InsertOptions.Builder()
-                            .addValue("id", id.toLong())
-                            .addValue("name", if (punishmentType.isIPBased()) target else name)
-                            .addValue("target", target)
-                            .addValue("reason", reason)
-                            .addValue("operator", operator.toString())
-                            .addValue("type", punishmentType.name)
-                            .addValue("start", start)
-                            .addValue("end", end)
-                            .addValue("server", server)
-                            .addValue("extra", if (punishmentType == PunishmentType.WARNING) "SEEN" else "")
-                            .build()
-                    ).complete()
+                    val newId = to.connection.insert {
+                        to.insert(
+                            InsertOptions.Builder()
+                                .addValue("name", if (punishmentType.isIPBased()) target else name)
+                                .addValue("target", target)
+                                .addValue("reason", reason)
+                                .addValue("operator", operator.toString())
+                                .addValue("type", punishmentType.name)
+                                .addValue("start", start)
+                                .addValue("end", end)
+                                .addValue("server", server)
+                                .addValue("extra", if (punishmentType == PunishmentType.WARNING) "SEEN" else "")
+                                .build()
+                        ).complete()
+                    }
+                    if (fPunishments.findOne(FindOptions.Builder().addWhere("id", id).build()).complete() != null) {
+                        tPunishments.insert(
+                            InsertOptions.Builder()
+                                .addValue("id", newId)
+                                .addValue("name", if (punishmentType.isIPBased()) target else name)
+                                .addValue("target", target)
+                                .addValue("reason", reason)
+                                .addValue("operator", operator.toString())
+                                .addValue("type", punishmentType.name)
+                                .addValue("start", start)
+                                .addValue("end", end)
+                                .addValue("server", server)
+                                .addValue("extra", if (punishmentType == PunishmentType.WARNING) "SEEN" else "")
+                                .build()
+                        ).complete()
+                    }
                 }
             }
             .onCatch { it.printStackTrace() }
