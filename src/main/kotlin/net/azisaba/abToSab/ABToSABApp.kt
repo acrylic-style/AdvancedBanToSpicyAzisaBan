@@ -176,7 +176,6 @@ object ABToSABApp {
                                     .addWhere("punishmentType", type)
                                     .addWhere("start", rawStart)
                                     .addWhere("end", rawEnd)
-                                    .addWhere("calculation", td.getString("calculation"))
                                     .build()
                             ).complete() != null) {
                             println("${fPunishments.name} -> ${tPunishments.name}: Importing #$id -> #$newId")
