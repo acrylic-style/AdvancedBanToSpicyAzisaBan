@@ -129,13 +129,15 @@ object ABToSABApp {
                         val id = td.getInteger("id")!!
                         println("${from.name} -> ${to.name}: Importing #$id")
                         val name = td.getString("name")
+                        val rawUUID = td.getString("uuid")
                         val target = try {
-                            UUIDUtil.uuidFromStringWithoutDashes(td.getString("uuid")).toString()
+                            UUIDUtil.uuidFromStringWithoutDashes(rawUUID).toString()
                         } catch (e: IllegalArgumentException) {
                             td.getString("uuid")
                         }
                         val reason = td.getString("reason")
-                        val operator = td.getString("operator").toMojangUniqueId().complete() ?: fallbackUUID
+                        val rawOperator = td.getString("operator")
+                        val operator = rawOperator.toMojangUniqueId().complete() ?: fallbackUUID
                         val type = td.getString("punishmentType")
                         if (type == "TEMP_WARNING") {
                             return@forEach println("#$id: Skipping because TEMP_WARNING is not supported")
@@ -144,8 +146,10 @@ object ABToSABApp {
                         if (!punishmentType.isIPBased() && target.toUUID() == null) {
                             return@forEach println("#$id: Invalid UUID: $target")
                         }
-                        val start = td.getString("start").toLong()
-                        val end = if (punishmentType.temp) td.getString("end").toLong() else -1L
+                        val rawStart = td.getString("start")
+                        val start = rawStart.toLong()
+                        val rawEnd = td.getString("end")
+                        val end = if (punishmentType.temp) rawEnd.toLong() else -1L
                         val newId = to.connection.insert {
                             to.insert(
                                 InsertOptions.Builder()
@@ -159,10 +163,22 @@ object ABToSABApp {
                                     .addValue("server", server)
                                     .addValue("extra", if (punishmentType == PunishmentType.WARNING) "SEEN" else "")
                                     .build()
-                            ).complete()
+                            ).onCatch { it.printStackTrace() }.complete()
                         }
+                        if (newId == 0L) return@forEach
                         println("${from.name} -> ${to.name}: Importing #$id as #$newId")
-                        if (fPunishments.findOne(FindOptions.Builder().addWhere("id", id).build()).complete() != null) {
+                        if (fPunishments.findOne(
+                                FindOptions.Builder()
+                                    .addWhere("name", name)
+                                    .addWhere("uuid", rawUUID)
+                                    .addWhere("reason", reason)
+                                    .addWhere("operator", rawOperator)
+                                    .addWhere("punishmentType", type)
+                                    .addWhere("start", rawStart)
+                                    .addWhere("end", rawEnd)
+                                    .addWhere("calculation", td.getString("calculation"))
+                                    .build()
+                            ).complete() != null) {
                             println("${fPunishments.name} -> ${tPunishments.name}: Importing #$id -> #$newId")
                             tPunishments.insert(
                                 InsertOptions.Builder()
@@ -177,7 +193,7 @@ object ABToSABApp {
                                     .addValue("server", server)
                                     .addValue("extra", if (punishmentType == PunishmentType.WARNING) "SEEN" else "")
                                     .build()
-                            ).complete()
+                            ).onCatch { it.printStackTrace() }.complete()
                         }
                     } catch (e: RuntimeException) {
                         e.printStackTrace()
