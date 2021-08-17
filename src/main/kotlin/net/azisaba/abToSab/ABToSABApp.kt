@@ -161,8 +161,9 @@ object ABToSABApp {
                                     .build()
                             ).complete()
                         }
+                        println("${from.name} -> ${to.name}: Importing #$id as #$newId")
                         if (fPunishments.findOne(FindOptions.Builder().addWhere("id", id).build()).complete() != null) {
-                            println("${fPunishments.name} -> ${tPunishments.name}: Importing #$id")
+                            println("${fPunishments.name} -> ${tPunishments.name}: Importing #$id -> #$newId")
                             tPunishments.insert(
                                 InsertOptions.Builder()
                                     .addValue("id", newId)
