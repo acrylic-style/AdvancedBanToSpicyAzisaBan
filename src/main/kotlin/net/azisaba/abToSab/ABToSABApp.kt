@@ -88,6 +88,7 @@ object ABToSABApp {
             TableDefinition.Builder("timestamp", DataType.BIGINT).setAllowNull(false).build(),
             TableDefinition.Builder("operator", DataType.STRING).setAllowNull(false).build(),
         ))
+        to.sync()
         println("Copying ${fromCfg.getString("name")}.PunishmentHistory to ${toCfg.getString("name")}.punishmentHistory / ${toCfg.getString("name")}.punishments")
         copyTable(fPunishments, tPunishments, fPunishmentHistory, tPunishmentHistory, cfg.getString("server"))
         println("Checking for removed punishments")
@@ -124,52 +125,61 @@ object ABToSABApp {
         from.findAll(FindOptions.ALL)
             .thenDo { list ->
                 list.forEach { td ->
-                    val id = td.getInteger("id")!!
-                    println("${from.name} -> ${to.name}: Importing #$id")
-                    val name = td.getString("name")
-                    val target = try {
-                        UUIDUtil.uuidFromStringWithoutDashes(td.getString("uuid")).toString()
-                    } catch (e: IllegalArgumentException) {
-                        td.getString("uuid")
-                    }
-                    val reason = td.getString("reason")
-                    val operator = td.getString("operator").toMojangUniqueId().complete() ?: fallbackUUID
-                    val punishmentType = PunishmentType.valueOf(td.getString("punishmentType"))
-                    if (!punishmentType.isIPBased() && target.toUUID() == null) {
-                        return@forEach println("#$id: Invalid UUID: $target")
-                    }
-                    val start = td.getString("start").toLong()
-                    val end = if (punishmentType.temp) td.getString("end").toLong() else -1L
-                    val newId = to.connection.insert {
-                        to.insert(
-                            InsertOptions.Builder()
-                                .addValue("name", if (punishmentType.isIPBased()) target else name)
-                                .addValue("target", target)
-                                .addValue("reason", reason)
-                                .addValue("operator", operator.toString())
-                                .addValue("type", punishmentType.name)
-                                .addValue("start", start)
-                                .addValue("end", end)
-                                .addValue("server", server)
-                                .addValue("extra", if (punishmentType == PunishmentType.WARNING) "SEEN" else "")
-                                .build()
-                        ).complete()
-                    }
-                    if (fPunishments.findOne(FindOptions.Builder().addWhere("id", id).build()).complete() != null) {
-                        tPunishments.insert(
-                            InsertOptions.Builder()
-                                .addValue("id", newId)
-                                .addValue("name", if (punishmentType.isIPBased()) target else name)
-                                .addValue("target", target)
-                                .addValue("reason", reason)
-                                .addValue("operator", operator.toString())
-                                .addValue("type", punishmentType.name)
-                                .addValue("start", start)
-                                .addValue("end", end)
-                                .addValue("server", server)
-                                .addValue("extra", if (punishmentType == PunishmentType.WARNING) "SEEN" else "")
-                                .build()
-                        ).complete()
+                    try {
+                        val id = td.getInteger("id")!!
+                        println("${from.name} -> ${to.name}: Importing #$id")
+                        val name = td.getString("name")
+                        val target = try {
+                            UUIDUtil.uuidFromStringWithoutDashes(td.getString("uuid")).toString()
+                        } catch (e: IllegalArgumentException) {
+                            td.getString("uuid")
+                        }
+                        val reason = td.getString("reason")
+                        val operator = td.getString("operator").toMojangUniqueId().complete() ?: fallbackUUID
+                        val type = td.getString("punishmentType")
+                        if (type == "TEMP_WARNING") {
+                            return@forEach println("#$id: Skipping because TEMP_WARNING is not supported")
+                        }
+                        val punishmentType = PunishmentType.valueOf(type)
+                        if (!punishmentType.isIPBased() && target.toUUID() == null) {
+                            return@forEach println("#$id: Invalid UUID: $target")
+                        }
+                        val start = td.getString("start").toLong()
+                        val end = if (punishmentType.temp) td.getString("end").toLong() else -1L
+                        val newId = to.connection.insert {
+                            to.insert(
+                                InsertOptions.Builder()
+                                    .addValue("name", if (punishmentType.isIPBased()) target else name)
+                                    .addValue("target", target)
+                                    .addValue("reason", reason)
+                                    .addValue("operator", operator.toString())
+                                    .addValue("type", punishmentType.name)
+                                    .addValue("start", start)
+                                    .addValue("end", end)
+                                    .addValue("server", server)
+                                    .addValue("extra", if (punishmentType == PunishmentType.WARNING) "SEEN" else "")
+                                    .build()
+                            ).complete()
+                        }
+                        if (fPunishments.findOne(FindOptions.Builder().addWhere("id", id).build()).complete() != null) {
+                            println("${fPunishments.name} -> ${tPunishments.name}: Importing #$id")
+                            tPunishments.insert(
+                                InsertOptions.Builder()
+                                    .addValue("id", newId)
+                                    .addValue("name", if (punishmentType.isIPBased()) target else name)
+                                    .addValue("target", target)
+                                    .addValue("reason", reason)
+                                    .addValue("operator", operator.toString())
+                                    .addValue("type", punishmentType.name)
+                                    .addValue("start", start)
+                                    .addValue("end", end)
+                                    .addValue("server", server)
+                                    .addValue("extra", if (punishmentType == PunishmentType.WARNING) "SEEN" else "")
+                                    .build()
+                            ).complete()
+                        }
+                    } catch (e: RuntimeException) {
+                        e.printStackTrace()
                     }
                 }
             }
